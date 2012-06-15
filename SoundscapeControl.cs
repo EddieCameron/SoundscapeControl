@@ -20,24 +20,26 @@ public class SoundscapeControl : MonoBehaviour
 		if ( instance != null )
 			Destroy ( this );
 		else
+		{
 			instance = this;
+	
+			curFading = new Dictionary<AudioSource, float>();
+		
+			// setup audiogroups
+			foreach( AudioGroup audioGroup in audioGroups )
+			{
+				audioGroup.targVols = new float[audioGroup.sources.Length];
+				for( int i = 0; i < audioGroup.targVols.Length; i++ )
+				{
+					audioGroup.targVols[i] = audioGroup.sources[i].volume;
+					audioGroup.sources[i].volume = 0;
+				}
+			}
+		}
 	}
 	
 	void Start()
-	{
-		// setup audiogroups
-		foreach( AudioGroup audioGroup in audioGroups )
-		{
-			audioGroup.targVols = new float[audioGroup.sources.Length];
-			for( int i = 0; i < audioGroup.targVols.Length; i++ )
-			{
-				audioGroup.targVols[i] = audioGroup.sources[i].volume;
-				audioGroup.sources[i].volume = 0;
-			}
-		}
-		
-		curFading = new Dictionary<AudioSource, float>();
-		
+	{		
 		// by default, fades in the first group at launch
 		if ( audioGroups.Length > 0 )
 			FadeInGroup( audioGroups[0] );
@@ -71,21 +73,20 @@ public class SoundscapeControl : MonoBehaviour
 		Debug.LogWarning ( "No audiogroup by name " + groupName );
 	}
 	
+	public static void FadeSourceTo( AudioSource source, float toVolume )
+	{
+		instance.FadeSource ( source, toVolume );
+	}
+	
 	void FadeInGroup( AudioGroup audioGroup )
 	{
 		for ( int i = 0; i < audioGroup.sources.Length; i++ )
 		{
 			AudioSource source = audioGroup.sources[i];
-			if ( source )
-			{
-				if ( curFading.ContainsKey ( source ) )
-					curFading[source] = audioGroup.targVols[i];
-				else
-				{
-					curFading.Add ( source, audioGroup.targVols[i] );
-					StartCoroutine ( Fade( source ) );
-				}
-			}
+			if ( source && i < audioGroup.targVols.Length )
+				FadeSource ( source, audioGroup.targVols[i] );
+			else
+				Debug.LogWarning ( "Audiogroup " + audioGroup.groupName + " isn't set up properly" );
 		}
 	}
 	
@@ -95,17 +96,20 @@ public class SoundscapeControl : MonoBehaviour
 		{
 			AudioSource source = audioGroup.sources[i];
 			if ( source )
-			{
-				if ( curFading.ContainsKey ( source ) )
-					curFading[source] = 0f;
-				else
-				{
-					curFading.Add ( source, 0 );
-					StartCoroutine ( Fade( source ) );
-				}
-			}
+				FadeSource ( source, 0 );
 		}
 	}	
+	
+	void FadeSource( AudioSource toFade, float toVolume )
+	{
+		if ( curFading.ContainsKey ( toFade ) )
+			curFading[toFade] = toVolume;
+		else
+		{
+			curFading.Add ( toFade, toVolume );
+			StartCoroutine ( Fade( toFade ) );
+		}
+	}
 	
 	IEnumerator Fade( AudioSource toFade )
 	{
@@ -133,7 +137,7 @@ public class SoundscapeControl : MonoBehaviour
 			
 			toFade.volume = Mathf.Lerp ( startVolume, targVolume, fadeAmount );
 			fadeAmount += Time.deltaTime / fadeTime;
-			Debug.Log ( toFade.name + " " + fadeAmount + " " + toFade.volume );
+
 			yield return 0;
 		}
 		
